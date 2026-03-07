@@ -23,7 +23,7 @@ app.include_router(inpaint.router,   prefix="/api/inpaint",   tags=["inpaint"])
 app.include_router(export.router,    prefix="/api/export",    tags=["export"])
 
 # Serve frontend
-frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
+frontend_path = os.path.join(os.path.dirname(__file__), "frontend")
 if os.path.exists(frontend_path):
     app.mount("/static", StaticFiles(directory=frontend_path), name="static")
 
