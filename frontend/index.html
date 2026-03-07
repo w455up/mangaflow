@@ -521,7 +521,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 <script>
 // ─── Config ───────────────────────────────────────────────────────────────
 const CFG = {
-  get backend(){ return sessionStorage.getItem('backendUrl')||'http://localhost:8000'; },
+  get backend(){ return sessionStorage.getItem('backendUrl')||window.location.origin; },
   get geminiKey(){ return sessionStorage.getItem('geminiKey')||''; },
   get deeplKey(){ return sessionStorage.getItem('deeplKey')||''; },
 };
@@ -1201,6 +1201,7 @@ function saveKeys(){
   const gKey=document.getElementById('geminiKey').value.trim();
   const dKey=document.getElementById('deeplKey').value.trim();
   if(bUrl) sessionStorage.setItem('backendUrl',bUrl);
+  else sessionStorage.removeItem('backendUrl'); // Added to clear if empty
   if(gKey) sessionStorage.setItem('geminiKey',gKey);
   else sessionStorage.removeItem('geminiKey');
   if(dKey) sessionStorage.setItem('deeplKey',dKey);
