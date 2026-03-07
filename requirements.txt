@@ -9,3 +9,4 @@ pydantic==2.7.1
 torch==2.3.1+cpu
 torchvision==0.18.1+cpu
 simple-lama-inpainting==0.1.2
+opencv-python-headless

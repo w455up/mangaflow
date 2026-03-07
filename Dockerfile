@@ -16,6 +16,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download LaMa model
+COPY download_model.py .
+RUN python download_model.py && rm download_model.py
+
 COPY . .
 
 EXPOSE 8000

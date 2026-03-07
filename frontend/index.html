@@ -375,8 +375,9 @@ input[type=range]{width:100%;accent-color:var(--accent);}
       <div style="display:flex;flex-direction:column;gap:6px;">
         <div class="flabel">消字方式</div>
         <select id="inpaintMethod">
-          <option value="lama">LaMa AI 消字（推薦）</option>
-          <option value="smart">智慧取樣背景色</option>
+          <option value="lama">LaMa AI 消字 (高品質，需 1GB RAM)</option>
+          <option value="opencv" selected>OpenCV 消字 (輕量推薦，不吃記憶體)</option>
+          <option value="smart">智慧取樣背景色 (基礎)</option>
           <option value="white">純白填充</option>
           <option value="black">純黑填充</option>
         </select>

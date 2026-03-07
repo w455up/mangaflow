@@ -7,6 +7,7 @@ import io
 import numpy as np
 from PIL import Image, ImageFilter
 from typing import List
+import cv2
 from models import BoundingBox
 
 
@@ -67,7 +68,7 @@ def inpaint_lama(
 ) -> Image.Image:
     """
     Inpaint text regions.
-    method: 'lama' | 'smart' | 'white' | 'black'
+    method: 'lama' | 'opencv' | 'smart' | 'white' | 'black'
     """
     result = img.copy().convert("RGB")
 
@@ -76,8 +77,11 @@ def inpaint_lama(
         if lama is not None:
             return _inpaint_with_lama(lama, result, boxes)
         # fallback
-        print("[LaMa] Using smart-fill fallback.")
-        method = "smart"
+        print("[LaMa] Using opencv fallback.")
+        method = "opencv"
+
+    if method == "opencv":
+        return _inpaint_with_opencv(result, boxes)
 
     # Pixel-fill methods
     from PIL import ImageDraw
@@ -137,3 +141,32 @@ def _inpaint_with_lama(lama, img: Image.Image, boxes: List[BoundingBox]) -> Imag
             fill = _smart_fill_color(r, x, y, w, h)
             d.rectangle([x, y, x+w, y+h], fill=fill)
         return r
+
+
+def _inpaint_with_opencv(img: Image.Image, boxes: List[BoundingBox]) -> Image.Image:
+    """
+    Use OpenCV traditional inpainting (Telea algorithm).
+    Very lightweight and works well on textures.
+    """
+    # Convert PIL to OpenCV (BGR)
+    open_cv_image = np.array(img)
+    open_cv_image = open_cv_image[:, :, ::-1].copy()
+
+    # Create mask
+    mask = np.zeros(open_cv_image.shape[:2], dtype=np.uint8)
+    for b in boxes:
+        if b.ignored:
+            continue
+        # Slightly expand mask
+        pad = 2
+        x1, y1 = max(0, int(b.x) - pad), max(0, int(b.y) - pad)
+        x2, y2 = min(img.width, int(b.x + b.w) + pad), min(img.height, int(b.y + b.h) + pad)
+        cv2.rectangle(mask, (x1, y1), (x2, y2), 255, -1)
+
+    # Run inpaint
+    # INPAINT_TELEA is usually good for textures
+    dst = cv2.inpaint(open_cv_image, mask, 3, cv2.INPAINT_TELEA)
+
+    # Convert BGR back to RGB PIL
+    dst = cv2.cvtColor(dst, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(dst)
