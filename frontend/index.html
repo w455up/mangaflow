@@ -521,7 +521,13 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 <script>
 // ─── Config ───────────────────────────────────────────────────────────────
 const CFG = {
-  get backend(){ return sessionStorage.getItem('backendUrl')||window.location.origin; },
+  get backend(){
+    const saved = sessionStorage.getItem('backendUrl');
+    if (saved && saved.includes('localhost') && !window.location.hostname.includes('localhost')) {
+      return window.location.origin;
+    }
+    return saved || window.location.origin;
+  },
   get geminiKey(){ return sessionStorage.getItem('geminiKey')||''; },
   get deeplKey(){ return sessionStorage.getItem('deeplKey')||''; },
 };
