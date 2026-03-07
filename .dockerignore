@@ -1,0 +1,17 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.db
+.venv
+venv
+env
+.env
+tests
+Dockerfile
+docker-compose.yml
+README.md
+.gemini
+brain
