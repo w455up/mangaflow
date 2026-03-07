@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MangaFlow</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0d0e;--surface:#141416;--surface2:#1c1c20;--border:#2a2a30;
+  --accent:#e8ff47;--accent2:#ff6b35;--text:#efefef;--muted:#555;
+  --success:#4ade80;--info:#60a5fa;--danger:#f87171;--warn:#fbbf24;
+  --sidebar-w:360px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;display:flex;flex-direction:column;}
+
+/* ── Header ── */
+header{height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--border);background:var(--surface);}
+.logo{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-.5px;}
+.logo span{color:var(--accent);}
+.hbtns{display:flex;gap:6px;align-items:center;}
+.hbtn{display:flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 11px;border-radius:5px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;transition:all .15s;white-space:nowrap;}
+.hbtn:hover{border-color:var(--accent);color:var(--accent);}
+.hbtn.pri{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;}
+.hbtn.pri:hover{background:#d5ec00;}
+.hbtn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none;}
+.key-badge{font-size:10px;padding:2px 8px;border-radius:3px;font-family:'Space Mono',monospace;}
+.key-ok{background:rgba(74,222,128,.1);color:var(--success);border:1px solid rgba(74,222,128,.2);}
+.key-no{background:rgba(248,113,113,.1);color:var(--danger);border:1px solid rgba(248,113,113,.2);}
+
+/* ── Body ── */
+.app-body{flex:1;display:flex;overflow:hidden;}
+
+/* ── Toolbar (minimal) ── */
+.canvas-col{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.toolbar{height:42px;flex-shrink:0;display:flex;align-items:center;gap:5px;padding:0 10px;border-bottom:1px solid var(--border);background:var(--surface2);}
+.tbtn{display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:4px;font-size:12px;cursor:pointer;white-space:nowrap;font-family:'Noto Sans TC',sans-serif;transition:all .15s;flex-shrink:0;}
+.tbtn:hover{border-color:var(--accent);color:var(--accent);}
+.tbtn.on{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;}
+.tbtn.dng:hover{border-color:var(--danger);color:var(--danger);}
+.tbtn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none;}
+.tsep{width:1px;height:18px;background:var(--border);flex-shrink:0;margin:0 3px;}
+/* workflow step indicators */
+.step-pills{display:flex;gap:4px;margin-left:auto;align-items:center;}
+.step{font-size:10px;padding:2px 8px;border-radius:10px;font-family:'Space Mono',monospace;border:1px solid var(--border);color:var(--muted);transition:all .3s;}
+.step.done{border-color:var(--success);color:var(--success);background:rgba(74,222,128,.08);}
+.step.active{border-color:var(--accent);color:var(--accent);background:rgba(232,255,71,.08);}
+
+/* ── Canvas ── */
+.canvas-scroll{flex:1;overflow:auto;background:#060607;position:relative;display:flex;align-items:flex-start;justify-content:center;}
+.canvas-scroll::-webkit-scrollbar{width:5px;height:5px;}
+.canvas-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.drop-zone{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;}
+.drop-zone.hidden{display:none;}
+.drop-icon{width:60px;height:60px;border:2px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;transition:all .25s;}
+.drop-zone:hover .drop-icon{border-color:var(--accent);background:rgba(232,255,71,.04);}
+.drop-zone h3{font-size:13px;}
+.drop-zone p{font-size:11px;color:var(--muted);}
+#imgWrap{position:relative;display:none;}
+#imgWrap.show{display:inline-block;}
+#mainImg{display:block;}
+#drawLayer{position:absolute;top:0;left:0;pointer-events:none;}
+#drawLayer.active{pointer-events:all;cursor:crosshair;}
+
+/* ── Bboxes ── */
+.bbox{position:absolute;border:2px solid var(--accent);box-sizing:border-box;cursor:pointer;}
+.bbox:hover{background:rgba(232,255,71,.06);}
+.bbox.sel{border-color:var(--accent2);z-index:10;}
+.bbox.translated{border-color:var(--success);}
+.bbox.inpainted{border-color:var(--info);}
+.bbox.ignored{border-color:var(--muted);border-style:dashed;opacity:.45;}
+.bbox-lbl{position:absolute;top:-18px;left:-2px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:1px 4px;border-radius:2px 2px 0 0;white-space:nowrap;pointer-events:none;background:var(--accent);color:#000;}
+.bbox.sel .bbox-lbl{background:var(--accent2);color:#fff;}
+.bbox.translated .bbox-lbl{background:var(--success);color:#000;}
+.bbox.inpainted .bbox-lbl{background:var(--info);color:#000;}
+.bbox.ignored .bbox-lbl{background:var(--muted);color:#fff;}
+.rh{position:absolute;width:8px;height:8px;background:#fff;border:1px solid #222;border-radius:2px;z-index:20;}
+.rh-nw{top:-4px;left:-4px;cursor:nw-resize;}.rh-ne{top:-4px;right:-4px;cursor:ne-resize;}
+.rh-sw{bottom:-4px;left:-4px;cursor:sw-resize;}.rh-se{bottom:-4px;right:-4px;cursor:se-resize;}
+.rh-n{top:-4px;left:calc(50% - 4px);cursor:n-resize;}.rh-s{bottom:-4px;left:calc(50% - 4px);cursor:s-resize;}
+.rh-w{left:-4px;top:calc(50% - 4px);cursor:w-resize;}.rh-e{right:-4px;top:calc(50% - 4px);cursor:e-resize;}
+.bbox-del{position:absolute;top:-18px;right:-2px;background:var(--danger);color:#fff;font-size:9px;font-weight:700;width:17px;height:17px;border-radius:2px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;pointer-events:all;}
+.bbox-del:hover{background:#dc2626;}
+.bbox-ign{position:absolute;top:-18px;right:17px;background:var(--muted);color:#fff;font-size:9px;width:17px;height:17px;border-radius:2px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;pointer-events:all;}
+.bbox-ign:hover{background:#888;}
+
+/* ── Sidebar ── */
+.sidebar{width:var(--sidebar-w);flex-shrink:0;display:flex;flex-direction:column;border-left:1px solid var(--border);background:var(--surface);overflow:hidden;}
+.page-strip{display:flex;gap:5px;padding:6px 8px;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;}
+.page-strip::-webkit-scrollbar{height:3px;}
+.page-strip::-webkit-scrollbar-thumb{background:var(--border);}
+.pthumb{width:38px;height:52px;flex-shrink:0;border:2px solid var(--border);border-radius:3px;overflow:hidden;cursor:pointer;background:var(--bg);transition:border-color .15s;position:relative;}
+.pthumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.pthumb.active{border-color:var(--accent);}
+.pthumb.done-inpaint{border-color:var(--info);}
+.pthumb .pthumb-badge{position:absolute;bottom:1px;right:1px;font-size:7px;background:rgba(0,0,0,.7);color:#fff;padding:0 2px;border-radius:1px;font-family:'Space Mono',monospace;}
+.pthumb-add{width:38px;height:52px;flex-shrink:0;border:2px dashed var(--border);border-radius:3px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:17px;transition:all .15s;}
+.pthumb-add:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ── Sidebar tabs (3 tabs now) ── */
+.stabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.stab{flex:1;padding:9px 4px;background:none;border:none;color:var(--muted);font-size:11.5px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;transition:all .15s;border-bottom:2px solid transparent;}
+.stab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.spanel{display:none;flex:1;overflow-y:auto;padding:12px;flex-direction:column;gap:10px;}
+.spanel.active{display:flex;}
+.spanel::-webkit-scrollbar{width:4px;}
+.spanel::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* ── Form ── */
+.flabel{display:block;font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
+select,input[type=text],input[type=password],textarea{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:5px;font-size:12.5px;font-family:'Noto Sans TC',sans-serif;outline:none;transition:border-color .2s;}
+select:focus,input:focus,textarea:focus{border-color:var(--accent);}
+textarea{resize:vertical;min-height:60px;}
+input[type=color]{width:100%;height:32px;padding:2px 3px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;cursor:pointer;}
+input[type=range]{width:100%;accent-color:var(--accent);}
+.btn-acc{width:100%;padding:8px;background:var(--accent);color:#000;border:none;border-radius:5px;font-weight:700;font-size:12.5px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;}
+.btn-acc:hover{background:#d5ec00;}
+.btn-acc:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+.btn-out{width:100%;padding:7px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:5px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;transition:all .2s;}
+.btn-out:hover{border-color:var(--accent);color:var(--accent);}
+.btn-2col{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+
+/* ── Stats ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
+.stat-c{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px;text-align:center;}
+.stat-n{font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--accent);}
+.stat-l{font-size:9px;color:var(--muted);margin-top:1px;}
+
+/* ── OCR + Trans merged cards ── */
+.box-card{background:var(--surface2);border:1px solid var(--border);border-radius:6px;overflow:hidden;cursor:pointer;transition:border-color .15s;}
+.box-card:hover{border-color:rgba(232,255,71,.4);}
+.box-card.ac{border-color:var(--accent2);}
+.box-card.ignored-card{opacity:.5;}
+.bcard-h{display:flex;align-items:center;gap:5px;padding:5px 9px;border-bottom:1px solid var(--border);}
+.bcard-id{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);flex-shrink:0;}
+.bcard-acts{display:flex;gap:2px;margin-left:auto;}
+.ica{background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:all .15s;}
+.ica:hover{background:var(--border);color:var(--text);}
+.ica.del:hover{color:var(--danger);}
+.bcard-b{padding:7px 9px;font-size:12px;line-height:1.6;}
+.orig-t{color:#bbb;word-break:break-all;}
+.trans-t{color:var(--success);word-break:break-all;margin-top:4px;padding-top:4px;border-top:1px solid var(--border);display:none;}
+.trans-t.show{display:block;}
+.tag{font-size:9px;padding:1px 5px;border-radius:10px;font-family:'Space Mono',monospace;}
+.tag-p{background:rgba(232,255,71,.1);color:var(--accent);}
+.tag-d{background:rgba(74,222,128,.1);color:var(--success);}
+.tag-i{background:rgba(85,85,85,.2);color:var(--muted);}
+
+/* ── Selected box editor (inline, inside panel) ── */
+.sel-editor{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:8px;}
+.sel-editor-title{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.06em;}
+.sel-orig{font-size:12.5px;color:#bbb;min-height:28px;line-height:1.6;word-break:break-all;}
+
+/* ── Inpaint / Typeset panel ── */
+.workflow-bar{display:flex;gap:6px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;}
+.wf-step{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);}
+.wf-step.done{color:var(--success);}
+.wf-step.active{color:var(--accent);}
+.wf-arrow{color:var(--border);font-size:10px;}
+
+.inpaint-prev-wrap{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:5px;overflow:hidden;min-height:80px;display:flex;align-items:center;justify-content:center;}
+#inpaintPrev{width:100%;display:none;}
+.inpaint-ph{font-size:11px;color:var(--muted);padding:20px;text-align:center;}
+
+/* Typeset box row */
+.ts-box-row{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px;display:flex;flex-direction:column;gap:6px;}
+.ts-box-row:hover{border-color:rgba(232,255,71,.3);}
+.ts-box-row.sel-ts{border-color:var(--accent2);}
+.ts-row-h{display:flex;align-items:center;gap:6px;font-size:11px;}
+.ts-id{font-family:'Space Mono',monospace;font-size:9px;color:var(--accent);}
+.ts-trans{font-size:12px;color:var(--success);word-break:break-all;}
+.ts-controls{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.ts-ctrl{display:flex;flex-direction:column;gap:3px;}
+
+/* Toggle */
+.tog-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.tog{width:32px;height:18px;background:var(--border);border-radius:9px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
+.tog.on{background:var(--accent);}
+.tog::after{content:'';position:absolute;width:12px;height:12px;background:#fff;border-radius:50%;top:3px;left:3px;transition:left .2s;}
+.tog.on::after{left:17px;}
+
+/* Settings card */
+.s-card{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:11px;display:flex;flex-direction:column;gap:9px;}
+.s-card-t{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.06em;}
+.api-notice{background:rgba(232,255,71,.04);border:1px solid rgba(232,255,71,.15);border-radius:6px;padding:9px 11px;font-size:11.5px;color:#ccc;line-height:1.7;}
+.logbox{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);max-height:130px;overflow-y:auto;line-height:1.9;}
+.ll-ok{color:var(--success);}.ll-info{color:var(--info);}.ll-warn{color:var(--warn);}.ll-err{color:var(--danger);}
+
+/* Loading */
+.loading{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(3px);z-index:500;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+.loading.show{display:flex;}
+.ld-spin{width:34px;height:34px;border:3px solid rgba(232,255,71,.15);border-top-color:var(--accent);border-radius:50%;animation:rot .65s linear infinite;}
+.ld-msg{font-size:13px;color:var(--text);}
+.ld-sub{font-size:11px;color:var(--muted);}
+@keyframes rot{to{transform:rotate(360deg);}}
+
+/* Notif */
+.notif{position:fixed;bottom:14px;right:14px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);padding:8px 13px;border-radius:6px;font-size:12px;z-index:999;transform:translateY(8px);opacity:0;transition:all .22s;max-width:280px;pointer-events:none;}
+.notif.show{transform:translateY(0);opacity:1;}
+.notif.ok{border-left-color:var(--success);}
+.notif.err{border-left-color:var(--danger);}
+.notif.warn{border-left-color:var(--warn);}
+
+/* Modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:200;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;width:460px;max-width:92vw;overflow:hidden;}
+.modal-hd{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.modal-title{font-weight:700;font-size:14px;}
+.modal-x{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+.modal-x:hover{color:var(--text);}
+.modal-body{padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+.modal-ft{padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:8px;}
+
+/* divider */
+.divider{height:1px;background:var(--border);flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="logo">Manga<span>Flow</span></div>
+  <div class="hbtns">
+    <span id="apiBadge" class="key-badge key-no">API 未設定</span>
+    <button class="hbtn" onclick="document.getElementById('fileInput').click()">📁 開啟</button>
+    <button class="hbtn" onclick="runAll()" id="btnRunAll" disabled>⚡ 一鍵處理</button>
+    <button class="hbtn pri" onclick="exportImage()" id="btnExport" disabled>⬇ 匯出</button>
+  </div>
+</header>
+
+<div class="app-body">
+
+  <!-- ── Canvas column ── -->
+  <div class="canvas-col">
+
+    <!-- Minimal toolbar -->
+    <div class="toolbar">
+      <button class="tbtn on" id="tb-sel" onclick="setTool('select')" title="選取模式 (V)">↖ 選取</button>
+      <button class="tbtn" id="tb-draw" onclick="setTool('draw')" title="手動框選 (B)">▭ 框選</button>
+      <div class="tsep"></div>
+      <button class="tbtn" id="tb-detect" onclick="runDetect()" title="Gemini 自動偵測對話框">✦ 自動偵測</button>
+      <div class="tsep"></div>
+      <button class="tbtn dng" onclick="clearAllBoxes()" title="清除所有框">✕ 清除框</button>
+
+      <!-- Workflow step indicators -->
+      <div class="step-pills">
+        <div class="step" id="step1">① 偵測</div>
+        <div class="step" id="step2">② OCR</div>
+        <div class="step" id="step3">③ 翻譯</div>
+        <div class="step" id="step4">④ 消字</div>
+        <div class="step" id="step5">⑤ 排版</div>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas-scroll" id="canvasScroll">
+      <div class="drop-zone" id="dropZone"
+           onclick="document.getElementById('fileInput').click()"
+           ondragover="event.preventDefault()"
+           ondrop="onDrop(event)">
+        <div class="drop-icon">🖼</div>
+        <h3>拖曳或點擊上傳漫畫圖片</h3>
+        <p>支援 JPG · PNG · WebP · 可批量上傳</p>
+      </div>
+      <div id="imgWrap">
+        <img id="mainImg" src="" alt="" draggable="false">
+        <canvas id="drawLayer"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Sidebar ── -->
+  <div class="sidebar">
+
+    <!-- Page strip -->
+    <div class="page-strip" id="pageStrip">
+      <div class="pthumb-add" onclick="document.getElementById('fileInput').click()">+</div>
+    </div>
+
+    <!-- 3 tabs: 框選與翻譯 | 消字排版 | 設定 -->
+    <div class="stabs">
+      <button class="stab active" onclick="showTab('work')">框選＆翻譯</button>
+      <button class="stab" onclick="showTab('typeset')">消字排版</button>
+      <button class="stab" onclick="showTab('settings')">設定</button>
+    </div>
+
+    <!-- ══ Panel: 框選與翻譯 (merged) ══ -->
+    <div class="spanel active" id="panel-work">
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-c"><div class="stat-n" id="s-boxes">0</div><div class="stat-l">框</div></div>
+        <div class="stat-c"><div class="stat-n" id="s-ocr">0</div><div class="stat-l">辨識</div></div>
+        <div class="stat-c"><div class="stat-n" id="s-trans">0</div><div class="stat-l">翻譯</div></div>
+        <div class="stat-c"><div class="stat-n" id="s-ign">0</div><div class="stat-l">略過</div></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="btn-2col">
+        <button class="btn-out" onclick="runOCR()" id="btnOCR">⌕ 辨識文字</button>
+        <button class="btn-out" onclick="translateAll()" id="btnTransAll">↔ 翻譯全部</button>
+      </div>
+
+      <!-- Translation settings (collapsed by default) -->
+      <details style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+        <summary style="padding:7px 10px;cursor:pointer;font-size:11.5px;color:var(--muted);list-style:none;display:flex;align-items:center;justify-content:space-between;">
+          翻譯設定
+          <span style="font-size:9px;">▾</span>
+        </summary>
+        <div style="padding:8px 10px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--border);">
+          <div>
+            <div class="flabel">翻譯引擎</div>
+            <select id="engineSel">
+              <option value="gemini">Gemini 2.5 Flash</option>
+              <option value="deepl">DeepL</option>
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <div><div class="flabel">原文</div><select id="srcLang"><option value="ja">日文</option><option value="zh-cn">簡中</option><option value="ko">韓文</option><option value="en">英文</option></select></div>
+            <div><div class="flabel">譯文</div><select id="dstLang"><option value="zh-tw">繁中</option><option value="zh-cn">簡中</option><option value="en">英文</option><option value="ja">日文</option></select></div>
+          </div>
+          <div>
+            <div class="flabel">語境／術語</div>
+            <textarea id="ctxInput" placeholder="例：武俠漫畫，主角「葉凡」…" rows="2"></textarea>
+          </div>
+        </div>
+      </details>
+
+      <div class="divider"></div>
+
+      <!-- Selected box editor -->
+      <div class="sel-editor" id="selEditor">
+        <div class="sel-editor-title">選中框 <span id="selBoxId" style="color:var(--accent)">—</span>　<span id="selBoxTag" class="tag tag-p" style="display:none"></span></div>
+        <div id="selOrigText" class="sel-orig" style="color:var(--muted);font-size:11.5px;">點擊圖片上的文字框以選取</div>
+        <div id="selTransWrap" style="display:none;flex-direction:column;gap:6px;">
+          <div class="flabel" style="margin:0;">翻譯（可修改）</div>
+          <textarea id="transEdit" rows="3" placeholder="翻譯結果…"></textarea>
+          <div class="btn-2col">
+            <button class="btn-acc" style="font-size:11.5px;" onclick="translateSelected()">翻此框</button>
+            <button class="btn-out" style="font-size:11.5px;" onclick="applyTranslation()">套用</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Box list -->
+      <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.05em;">文字框列表</div>
+      <div id="boxList" style="display:flex;flex-direction:column;gap:6px;">
+        <div style="text-align:center;color:var(--muted);font-size:11.5px;padding:14px 0;">
+          尚無文字框<br>
+          <span style="font-size:10.5px;">點「自動偵測」或切換「框選」模式手動框選</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══ Panel: 消字排版 ══ -->
+    <div class="spanel" id="panel-typeset">
+
+      <!-- Workflow indicator -->
+      <div class="workflow-bar">
+        <div class="wf-step" id="wf1"><span>⬛</span> 消字</div>
+        <div class="wf-arrow">→</div>
+        <div class="wf-step" id="wf2"><span>✍</span> 排版</div>
+        <div class="wf-arrow">→</div>
+        <div class="wf-step" id="wf3"><span>✓</span> 完成</div>
+      </div>
+
+      <!-- Inpaint section -->
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div class="flabel">消字方式</div>
+        <select id="inpaintMethod">
+          <option value="lama">LaMa AI 消字（推薦）</option>
+          <option value="smart">智慧取樣背景色</option>
+          <option value="white">純白填充</option>
+          <option value="black">純黑填充</option>
+        </select>
+        <div class="btn-2col">
+          <button class="btn-acc" onclick="runInpaintAll()">⬛ 消除所有框</button>
+          <button class="btn-out" onclick="runInpaintSelected()">消除選中框</button>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="inpaint-prev-wrap">
+        <canvas id="inpaintPrev"></canvas>
+        <div class="inpaint-ph" id="inpaintPh">消字後預覽顯示於此</div>
+      </div>
+
+      <!-- Apply inpainted image as base -->
+      <button class="btn-out" id="btnApplyBase" onclick="applyInpaintAsBase()" disabled>
+        ↩ 將消字圖設為底圖（進入排版）
+      </button>
+
+      <div class="divider"></div>
+
+      <!-- Typeset section -->
+      <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.05em;">
+        排版設定
+      </div>
+
+      <!-- Global font settings -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px;display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:11px;color:var(--muted);">全域預設（可對每個框個別覆蓋）</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div>
+            <div class="flabel">字體</div>
+            <select id="fontSel">
+              <option value="Noto Sans TC">Noto Sans TC</option>
+              <option value="serif">明體</option>
+              <option value="Arial">Arial</option>
+            </select>
+          </div>
+          <div>
+            <div class="flabel">文字顏色</div>
+            <input type="color" id="fontColor" value="#000000">
+          </div>
+        </div>
+        <div>
+          <div class="flabel">字級 <span id="fontSizeVal">自動</span></div>
+          <input type="range" id="fontSizeRange" min="0" max="40" value="0"
+                 oninput="onFontSizeRange(this.value)">
+        </div>
+        <div>
+          <div class="flabel">排列方向</div>
+          <select id="textDir">
+            <option value="h">橫排</option>
+            <option value="v">直排（實驗）</option>
+          </select>
+        </div>
+        <div class="tog-row">
+          <div><div style="font-size:12.5px;">自動縮放字級</div><div style="font-size:10px;color:var(--muted);">字型大小滑到 0 即啟用</div></div>
+          <div class="tog on" id="autoScaleTog" onclick="this.classList.toggle('on')"></div>
+        </div>
+      </div>
+
+      <!-- Per-box overrides -->
+      <div id="tsBoxList" style="display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:11px;color:var(--muted);text-align:center;padding:10px 0;">消字後顯示各框排版控制</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="btn-2col">
+        <button class="btn-acc" onclick="renderPreview()" id="btnRenderPrev">👁 預覽排版</button>
+        <button class="btn-acc" onclick="exportImage()" id="btnExport2">⬇ 匯出</button>
+      </div>
+
+    </div>
+
+    <!-- ══ Panel: 設定 ══ -->
+    <div class="spanel" id="panel-settings">
+      <div class="api-notice">
+        <b>⚠ 請先填入 API Key</b><br>
+        自動偵測、OCR、翻譯均需 Gemini Key。<br>
+        金鑰僅存於本次 Session，不傳至任何伺服器。
+      </div>
+      <div class="s-card">
+        <div class="s-card-t">🌐 後端</div>
+        <div><div class="flabel">API 地址</div><input type="text" id="backendUrl" value="http://localhost:8000" placeholder="http://localhost:8000"></div>
+        <button class="btn-out" onclick="testBackend()">測試連線</button>
+      </div>
+      <div class="s-card">
+        <div class="s-card-t">🔑 API 金鑰</div>
+        <div><div class="flabel">Gemini API Key</div><input type="password" id="geminiKey" placeholder="AIza…"></div>
+        <div><div class="flabel">DeepL API Key（選用）</div><input type="password" id="deeplKey" placeholder="…:fx"></div>
+        <button class="btn-acc" onclick="saveKeys()">儲存設定</button>
+      </div>
+      <div class="s-card">
+        <div class="s-card-t">🖼 顯示</div>
+        <div class="tog-row">
+          <div><div style="font-size:12.5px;">顯示文字框邊框</div></div>
+          <div class="tog on" id="showBboxTog" onclick="toggleBboxVis(this)"></div>
+        </div>
+      </div>
+      <div class="s-card">
+        <div class="s-card-t">📋 日誌</div>
+        <div class="logbox" id="logBox"><span class="ll-info">[INIT] MangaFlow 已就緒</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading" id="loadingOverlay">
+  <div class="ld-spin"></div>
+  <div class="ld-msg" id="ldMsg">處理中…</div>
+  <div class="ld-sub" id="ldSub"></div>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">編輯文字框 <span id="editModalId" style="color:var(--accent);font-family:'Space Mono',monospace;font-size:11px;"></span></div>
+      <button class="modal-x" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div><div class="flabel">原文</div><textarea id="editOrig" rows="3"></textarea></div>
+      <div><div class="flabel">翻譯</div><textarea id="editTrans" rows="3"></textarea></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-acc" style="flex:1" onclick="saveEditModal()">儲存</button>
+      <button class="btn-out" style="flex:1" onclick="closeModal()">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="notif" id="notif"></div>
+<input type="file" id="fileInput" accept="image/*" multiple style="display:none" onchange="handleFiles(this.files)">
+
+<!-- ════════════════════════════════════════
+  JAVASCRIPT
+════════════════════════════════════════ -->
+<script>
+// ─── Config ───────────────────────────────────────────────────────────────
+const CFG = {
+  get backend(){ return sessionStorage.getItem('backendUrl')||'http://localhost:8000'; },
+  get geminiKey(){ return sessionStorage.getItem('geminiKey')||''; },
+  get deeplKey(){ return sessionStorage.getItem('deeplKey')||''; },
+};
+
+// ─── State ────────────────────────────────────────────────────────────────
+const S = {
+  images:[],   // [{src, name, mime}]
+  curIdx:0,
+  boxes:{},    // {imgIdx:[{id,x,y,w,h,orig,trans,inpainted,ignored, tsSize,tsDir,tsColor}]}
+  inpaintedB64:{}, // {imgIdx: base64}  — result from backend inpaint
+  baseIsInpaint:{},// {imgIdx: bool}    — whether canvas is showing inpainted
+  selId:null,
+  tool:'select',
+  nextId:1,
+  imgScale:1,
+};
+
+// ─── Log / Notify ─────────────────────────────────────────────────────────
+function lg(msg,t=''){
+  const b=document.getElementById('logBox');
+  const s=document.createElement('span');
+  s.className=t?'ll-'+t:'';
+  const ts=new Date().toLocaleTimeString('zh-TW',{hour12:false});
+  s.textContent=`[${ts}] ${msg}`;
+  b.appendChild(document.createTextNode('\n'));
+  b.appendChild(s);
+  b.scrollTop=b.scrollHeight;
+}
+function nt(msg,t=''){
+  const el=document.getElementById('notif');
+  el.textContent=msg; el.className=`notif show ${t}`;
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),3500);
+}
+function loading(show,msg='處理中…',sub=''){
+  document.getElementById('ldMsg').textContent=msg;
+  document.getElementById('ldSub').textContent=sub;
+  document.getElementById('loadingOverlay').classList.toggle('show',show);
+}
+
+// ─── API ──────────────────────────────────────────────────────────────────
+async function api(path,body){
+  const res=await fetch(CFG.backend+path,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body),
+  });
+  if(!res.ok){
+    const err=await res.json().catch(()=>({detail:res.statusText}));
+    throw new Error(err.detail||res.statusText);
+  }
+  return res.json();
+}
+
+async function testBackend(){
+  try{
+    const r=await fetch(CFG.backend+'/health');
+    const d=await r.json();
+    nt('後端連線正常 ✓','ok'); lg('後端連線 OK','ok');
+  }catch(e){nt('無法連線後端：'+e.message,'err');lg('後端連線失敗：'+e.message,'err');}
+}
+
+// ─── Files ────────────────────────────────────────────────────────────────
+function handleFiles(files){
+  [...files].forEach(f=>{
+    if(!f.type.startsWith('image/')) return;
+    const r=new FileReader();
+    r.onload=e=>{
+      S.images.push({src:e.target.result,name:f.name,mime:f.type});
+      if(S.images.length===1) loadPage(0);
+      else addThumb(S.images.length-1);
+    };
+    r.readAsDataURL(f);
+  });
+}
+function onDrop(e){e.preventDefault();handleFiles(e.dataTransfer.files);}
+
+function addThumb(idx){
+  const strip=document.getElementById('pageStrip');
+  if(!strip.querySelector(`[data-idx="${idx}"]`)){
+    const d=document.createElement('div');
+    d.className='pthumb'; d.dataset.idx=idx;
+    d.onclick=()=>loadPage(idx);
+    d.innerHTML=`<img src="${S.images[idx].src}" alt=""><span class="pthumb-badge">${idx+1}</span>`;
+    strip.insertBefore(d,strip.querySelector('.pthumb-add'));
+  }
+  syncThumb();
+}
+function syncThumb(){
+  document.querySelectorAll('.pthumb').forEach(t=>{
+    t.classList.toggle('active',+t.dataset.idx===S.curIdx);
+    t.classList.toggle('done-inpaint',!!S.inpaintedB64[+t.dataset.idx]);
+  });
+}
+
+function loadPage(idx){
+  S.curIdx=idx; S.selId=null;
+  const img=document.getElementById('mainImg');
+  // If we have an inpainted base for this page, show that instead
+  if(S.baseIsInpaint[idx] && S.inpaintedB64[idx]){
+    img.src='data:image/png;base64,'+S.inpaintedB64[idx];
+  } else {
+    img.src=S.images[idx].src;
+  }
+  img.onload=()=>{
+    fitImage();
+    if(!S.boxes[idx]) S.boxes[idx]=[];
+    renderBboxes(); renderBoxList(); updateStats();
+    updatePreview();
+    document.getElementById('btnExport').disabled=false;
+    document.getElementById('btnRunAll').disabled=false;
+    lg(`載入：${S.images[idx].name}`,'ok');
+  };
+  document.getElementById('dropZone').classList.add('hidden');
+  document.getElementById('imgWrap').classList.add('show');
+  syncThumb(); clearSel();
+}
+
+// ─── Fit image ────────────────────────────────────────────────────────────
+function fitImage(){
+  const scroll=document.getElementById('canvasScroll');
+  const img=document.getElementById('mainImg');
+  const wrap=document.getElementById('imgWrap');
+  const cv=document.getElementById('drawLayer');
+  const nw=img.naturalWidth,nh=img.naturalHeight;
+  const aw=scroll.clientWidth-2,ah=scroll.clientHeight-2;
+  let w=aw,h=aw*nh/nw;
+  if(h>ah){h=ah;w=ah*nw/nh;}
+  img.style.width=w+'px'; img.style.height=h+'px';
+  wrap.style.width=w+'px'; wrap.style.height=h+'px';
+  cv.width=nw; cv.height=nh;
+  cv.style.width=w+'px'; cv.style.height=h+'px';
+  S.imgScale=nw/w;
+}
+window.addEventListener('resize',()=>{if(S.images.length){fitImage();renderBboxes();}});
+
+// ─── Tool ─────────────────────────────────────────────────────────────────
+function setTool(t){
+  S.tool=t;
+  document.getElementById('tb-sel').classList.toggle('on',t==='select');
+  document.getElementById('tb-draw').classList.toggle('on',t==='draw');
+  document.getElementById('drawLayer').classList.toggle('active',t==='draw');
+}
+// Keyboard shortcuts
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  if(e.key==='v'||e.key==='V') setTool('select');
+  if(e.key==='b'||e.key==='B') setTool('draw');
+  if(e.key==='Delete'||e.key==='Backspace'){if(S.selId!==null){deleteBox(S.selId);}}
+});
+
+// ─── Draw new box ─────────────────────────────────────────────────────────
+{
+  let ds=null;
+  const cv=document.getElementById('drawLayer');
+  cv.addEventListener('mousedown',e=>{
+    const r=cv.getBoundingClientRect();
+    ds={x:(e.clientX-r.left)*S.imgScale,y:(e.clientY-r.top)*S.imgScale};
+  });
+  cv.addEventListener('mousemove',e=>{
+    if(!ds) return;
+    const r=cv.getBoundingClientRect();
+    const cx=(e.clientX-r.left)*S.imgScale,cy=(e.clientY-r.top)*S.imgScale;
+    const ctx=cv.getContext('2d');
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.strokeStyle='#e8ff47'; ctx.lineWidth=2/S.imgScale; ctx.setLineDash([8/S.imgScale,4/S.imgScale]);
+    ctx.strokeRect(Math.min(ds.x,cx),Math.min(ds.y,cy),Math.abs(cx-ds.x),Math.abs(cy-ds.y));
+  });
+  cv.addEventListener('mouseup',e=>{
+    if(!ds) return;
+    const r=cv.getBoundingClientRect();
+    const cx=(e.clientX-r.left)*S.imgScale,cy=(e.clientY-r.top)*S.imgScale;
+    const bx={x:Math.min(ds.x,cx),y:Math.min(ds.y,cy),w:Math.abs(cx-ds.x),h:Math.abs(cy-ds.y)};
+    ds=null; cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
+    if(bx.w>15&&bx.h>15) addBox(bx.x,bx.y,bx.w,bx.h);
+  });
+}
+
+// ─── Box management ───────────────────────────────────────────────────────
+function addBox(x,y,w,h,orig='',trans=''){
+  const idx=S.curIdx;
+  if(!S.boxes[idx]) S.boxes[idx]=[];
+  const b={id:S.nextId++,x,y,w,h,orig,trans,inpainted:false,ignored:false,
+           tsSize:0,tsDir:'h',tsColor:''};
+  S.boxes[idx].push(b);
+  renderBboxes(); renderBoxList(); updateStats(); updateStepIndicators();
+  return b;
+}
+function getBoxes(){return S.boxes[S.curIdx]||[];}
+
+function deleteBox(id){
+  S.boxes[S.curIdx]=getBoxes().filter(b=>b.id!==id);
+  if(S.selId===id){S.selId=null;clearSel();}
+  renderBboxes(); renderBoxList(); updateStats(); updateStepIndicators();
+}
+function toggleIgnore(id){
+  const b=getBoxes().find(b=>b.id===id);
+  if(b){b.ignored=!b.ignored;renderBboxes();renderBoxList();updateStats();}
+}
+function selectBox(id){
+  S.selId=id; renderBboxes();
+  if(!id){clearSel();return;}
+  const b=getBoxes().find(b=>b.id===id);
+  if(!b) return;
+  document.getElementById('selBoxId').textContent=`#${id}`;
+  document.getElementById('selOrigText').textContent=b.orig||'（尚未辨識）';
+  document.getElementById('selOrigText').style.color=b.orig?'#bbb':'var(--muted)';
+  const tw=document.getElementById('selTransWrap');
+  tw.style.display='flex';
+  document.getElementById('transEdit').value=b.trans||'';
+  const tag=document.getElementById('selBoxTag');
+  tag.style.display='inline';
+  tag.className='tag '+(b.ignored?'tag-i':(b.trans?'tag-d':'tag-p'));
+  tag.textContent=b.ignored?'略過':(b.trans?'✓完成':'待譯');
+}
+function clearSel(){
+  S.selId=null;
+  document.getElementById('selBoxId').textContent='—';
+  document.getElementById('selOrigText').textContent='點擊圖片上的文字框以選取';
+  document.getElementById('selOrigText').style.color='var(--muted)';
+  document.getElementById('selTransWrap').style.display='none';
+  document.getElementById('selBoxTag').style.display='none';
+}
+function clearAllBoxes(){
+  S.boxes[S.curIdx]=[]; S.selId=null;
+  renderBboxes(); renderBoxList(); updateStats(); clearSel(); updateStepIndicators();
+  nt('已清除所有文字框');
+}
+
+// ─── Render bboxes ────────────────────────────────────────────────────────
+function renderBboxes(){
+  const wrap=document.getElementById('imgWrap');
+  wrap.querySelectorAll('.bbox').forEach(el=>el.remove());
+  if(!document.getElementById('showBboxTog').classList.contains('on')) return;
+  const sc=1/S.imgScale;
+  getBoxes().forEach(b=>{
+    const div=document.createElement('div');
+    div.className='bbox'+(b.id===S.selId?' sel':'')+(b.trans?' translated':'')+(b.inpainted?' inpainted':'')+(b.ignored?' ignored':'');
+    div.style.cssText=`left:${b.x*sc}px;top:${b.y*sc}px;width:${b.w*sc}px;height:${b.h*sc}px;`;
+    const lbl=document.createElement('div');
+    lbl.className='bbox-lbl';
+    lbl.textContent=`#${b.id}`+(b.ignored?' 略':'')+(b.inpainted?' ✓':'')+(b.trans?' T':'');
+    div.appendChild(lbl);
+    const del=document.createElement('div');
+    del.className='bbox-del'; del.textContent='✕';
+    del.onclick=e=>{e.stopPropagation();deleteBox(b.id);}; div.appendChild(del);
+    const ign=document.createElement('div');
+    ign.className='bbox-ign'; ign.textContent='👁';
+    ign.onclick=e=>{e.stopPropagation();toggleIgnore(b.id);}; div.appendChild(ign);
+    div.onclick=e=>{e.stopPropagation();selectBox(b.id);};
+    div.ondblclick=e=>{e.stopPropagation();openEditModal(b.id);};
+    if(b.id===S.selId){
+      ['nw','n','ne','w','e','sw','s','se'].forEach(dir=>{
+        const h=document.createElement('div'); h.className=`rh rh-${dir}`;
+        h.addEventListener('mousedown',e=>startResize(e,b.id,dir)); div.appendChild(h);
+      });
+      div.addEventListener('mousedown',e=>{
+        if(e.target.classList.contains('rh')||e.target.classList.contains('bbox-del')||e.target.classList.contains('bbox-ign')) return;
+        startMove(e,b.id);
+      });
+    }
+    wrap.appendChild(div);
+  });
+}
+
+function startResize(e,id,dir){
+  e.stopPropagation();e.preventDefault();
+  const b=getBoxes().find(b=>b.id===id);if(!b)return;
+  const sx=e.clientX,sy=e.clientY,orig={...b},sc=S.imgScale;
+  const mv=ev=>{
+    const dx=(ev.clientX-sx)*sc,dy=(ev.clientY-sy)*sc;
+    let{x,y,w,h}=orig;
+    if(dir.includes('e'))w=Math.max(20,w+dx);
+    if(dir.includes('s'))h=Math.max(20,h+dy);
+    if(dir.includes('w')){x+=dx;w=Math.max(20,w-dx);if(w===20)x=orig.x+orig.w-20;}
+    if(dir.includes('n')){y+=dy;h=Math.max(20,h-dy);if(h===20)y=orig.y+orig.h-20;}
+    b.x=x;b.y=y;b.w=w;b.h=h;renderBboxes();
+  };
+  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);};
+  document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+}
+function startMove(e,id){
+  e.preventDefault();
+  const b=getBoxes().find(b=>b.id===id);if(!b)return;
+  const sx=e.clientX,sy=e.clientY,ox=b.x,oy=b.y,sc=S.imgScale;
+  const mv=ev=>{b.x=ox+(ev.clientX-sx)*sc;b.y=oy+(ev.clientY-sy)*sc;renderBboxes();};
+  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);};
+  document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+}
+document.getElementById('canvasScroll').addEventListener('click',e=>{
+  if(e.target===document.getElementById('canvasScroll')||e.target===document.getElementById('mainImg')){
+    selectBox(null);
+  }
+});
+
+// ─── Box list (merged) ────────────────────────────────────────────────────
+function renderBoxList(){
+  const list=document.getElementById('boxList');
+  const boxes=getBoxes();
+  if(!boxes.length){
+    list.innerHTML='<div style="text-align:center;color:var(--muted);font-size:11.5px;padding:14px 0;">尚無文字框<br><span style="font-size:10.5px;">點「自動偵測」或切換「框選」模式</span></div>';
+    renderTsBoxList(); return;
+  }
+  list.innerHTML='';
+  boxes.forEach(b=>{
+    const c=document.createElement('div');
+    c.className='box-card'+(b.id===S.selId?' ac':'')+(b.ignored?' ignored-card':'');
+    c.innerHTML=`
+      <div class="bcard-h">
+        <span class="bcard-id">#${String(b.id).padStart(2,'0')}</span>
+        <span class="tag ${b.ignored?'tag-i':(b.trans?'tag-d':'tag-p')}">${b.ignored?'略過':(b.trans?'✓':'待')}</span>
+        <div class="bcard-acts">
+          <button class="ica" onclick="event.stopPropagation();toggleIgnore(${b.id})" title="略過">👁</button>
+          <button class="ica" onclick="event.stopPropagation();openEditModal(${b.id})" title="編輯">✏</button>
+          <button class="ica del" onclick="event.stopPropagation();deleteBox(${b.id})" title="刪除">✕</button>
+        </div>
+      </div>
+      <div class="bcard-b">
+        <div class="orig-t">${b.orig||'<span style="color:var(--muted);font-size:11px;">尚未辨識</span>'}</div>
+        <div class="trans-t ${b.trans?'show':''}">${b.trans||''}</div>
+      </div>`;
+    c.onclick=()=>{selectBox(b.id);renderBboxes();};
+    list.appendChild(c);
+  });
+  renderTsBoxList();
+}
+
+function renderTsBoxList(){
+  const list=document.getElementById('tsBoxList');
+  const boxes=getBoxes().filter(b=>!b.ignored&&b.trans);
+  if(!boxes.length){
+    list.innerHTML='<div style="font-size:11px;color:var(--muted);text-align:center;padding:10px 0;">消字後顯示各框排版控制</div>';
+    return;
+  }
+  list.innerHTML='';
+  boxes.forEach(b=>{
+    const row=document.createElement('div');
+    row.className='ts-box-row'+(b.id===S.selId?' sel-ts':'');
+    row.innerHTML=`
+      <div class="ts-row-h">
+        <span class="ts-id">#${String(b.id).padStart(2,'0')}</span>
+        <span class="ts-trans">${b.trans}</span>
+      </div>
+      <div class="ts-controls">
+        <div class="ts-ctrl">
+          <div class="flabel">字級 (0=自動)</div>
+          <input type="number" min="0" max="60" value="${b.tsSize||0}"
+                 oninput="setBoxProp(${b.id},'tsSize',+this.value)"
+                 style="padding:4px 7px;font-size:12px;">
+        </div>
+        <div class="ts-ctrl">
+          <div class="flabel">方向</div>
+          <select onchange="setBoxProp(${b.id},'tsDir',this.value)" style="padding:4px 7px;font-size:12px;">
+            <option value="h" ${b.tsDir==='v'?'':'selected'}>橫排</option>
+            <option value="v" ${b.tsDir==='v'?'selected':''}>直排</option>
+          </select>
+        </div>
+        <div class="ts-ctrl">
+          <div class="flabel">顏色（空=全域）</div>
+          <input type="color" value="${b.tsColor||document.getElementById('fontColor').value}"
+                 oninput="setBoxProp(${b.id},'tsColor',this.value)">
+        </div>
+      </div>`;
+    row.onclick=()=>selectBox(b.id);
+    list.appendChild(row);
+  });
+}
+
+function setBoxProp(id,prop,val){
+  const b=getBoxes().find(b=>b.id===id);
+  if(b) b[prop]=val;
+}
+
+function updateStats(){
+  const b=getBoxes();
+  document.getElementById('s-boxes').textContent=b.length;
+  document.getElementById('s-ocr').textContent=b.filter(x=>x.orig).length;
+  document.getElementById('s-trans').textContent=b.filter(x=>x.trans&&!x.ignored).length;
+  document.getElementById('s-ign').textContent=b.filter(x=>x.ignored).length;
+}
+
+function updateStepIndicators(){
+  const b=getBoxes();
+  const set=(id,st)=>{
+    const el=document.getElementById(id);
+    el.className='step'+(st==='done'?' done':st==='active'?' active':'');
+  };
+  const hasBoxes=b.length>0;
+  const hasOcr=b.some(x=>x.orig);
+  const hasTrans=b.some(x=>x.trans&&!x.ignored);
+  const hasInpaint=!!S.inpaintedB64[S.curIdx];
+  const baseDone=!!S.baseIsInpaint[S.curIdx];
+  set('step1',hasBoxes?'done':'active');
+  set('step2',hasOcr?'done':(hasBoxes?'active':''));
+  set('step3',hasTrans?'done':(hasOcr?'active':''));
+  set('step4',hasInpaint?'done':(hasTrans?'active':''));
+  set('step5',baseDone?'done':(hasInpaint?'active':''));
+}
+
+// ─── Detect ───────────────────────────────────────────────────────────────
+async function runDetect(){
+  if(!S.images.length){nt('請先上傳圖片','err');return;}
+  if(!CFG.geminiKey){nt('請先在設定頁面填入 Gemini API Key','err');showTab('settings');return;}
+  loading(true,'Gemini 偵測對話框中…','首次呼叫可能稍慢');
+  lg('偵測中…','info');
+  try{
+    const src=S.images[S.curIdx];
+    const b64=src.src.split(',')[1];
+    const data=await api('/api/detect',{image_b64:b64,mime_type:src.mime||'image/jpeg',gemini_key:CFG.geminiKey});
+    S.boxes[S.curIdx]=[]; S.nextId=1;
+    data.boxes.forEach(b=>{
+      S.boxes[S.curIdx].push({...b,tsSize:0,tsDir:'h',tsColor:''});
+      if(b.id>=S.nextId) S.nextId=b.id+1;
+    });
+    renderBboxes(); renderBoxList(); updateStats(); updateStepIndicators();
+    nt(`偵測完成，找到 ${data.boxes.length} 個框`,'ok');
+    lg(`偵測完成：${data.boxes.length} 個框`,'ok');
+  }catch(e){nt('偵測失敗：'+e.message,'err');lg('偵測失敗：'+e.message,'err');}
+  finally{loading(false);}
+}
+
+// ─── OCR ──────────────────────────────────────────────────────────────────
+async function runOCR(){
+  const pending=getBoxes().filter(b=>!b.ignored&&!b.orig);
+  if(!pending.length){nt('所有框已辨識或無框');return;}
+  if(!CFG.geminiKey){nt('請先填入 Gemini API Key','err');showTab('settings');return;}
+  loading(true,'Gemini OCR 辨識中…','');
+  lg('OCR…','info');
+  try{
+    const src=S.images[S.curIdx];
+    const data=await api('/api/ocr',{
+      image_b64:src.src.split(',')[1], mime_type:src.mime||'image/jpeg',
+      gemini_key:CFG.geminiKey, boxes:getBoxes(),
+    });
+    S.boxes[S.curIdx]=data.boxes.map(b=>({tsSize:0,tsDir:'h',tsColor:'',...b}));
+    renderBboxes(); renderBoxList(); updateStats(); updateStepIndicators();
+    nt('OCR 完成','ok'); lg('OCR 完成','ok');
+  }catch(e){nt('OCR 失敗：'+e.message,'err');lg('OCR 失敗：'+e.message,'err');}
+  finally{loading(false);}
+}
+
+// ─── Translate ────────────────────────────────────────────────────────────
+async function translateAll(){
+  const boxes=getBoxes().filter(b=>b.orig&&!b.trans&&!b.ignored);
+  if(!boxes.length){nt('無需翻譯的框（請先執行 OCR）');return;}
+  const engine=document.getElementById('engineSel').value;
+  if(engine==='gemini'&&!CFG.geminiKey){nt('請填入 Gemini Key','err');showTab('settings');return;}
+  if(engine==='deepl'&&!CFG.deeplKey){nt('請填入 DeepL Key','err');showTab('settings');return;}
+  loading(true,'翻譯中…','');
+  lg('翻譯…','info');
+  try{
+    const data=await api('/api/translate',{
+      texts:boxes.map(b=>b.orig),
+      src_lang:document.getElementById('srcLang').value,
+      dst_lang:document.getElementById('dstLang').value,
+      context:document.getElementById('ctxInput').value,
+      engine, gemini_key:CFG.geminiKey, deepl_key:CFG.deeplKey,
+    });
+    data.translations.forEach((t,i)=>{if(boxes[i])boxes[i].trans=t;});
+    if(S.selId) selectBox(S.selId); // refresh sel panel
+    renderBboxes(); renderBoxList(); updateStats(); updateStepIndicators();
+    nt(`翻譯完成 ${data.translations.length} 個框`,'ok'); lg('翻譯完成','ok');
+  }catch(e){nt('翻譯失敗：'+e.message,'err');lg('翻譯失敗：'+e.message,'err');}
+  finally{loading(false);}
+}
+
+async function translateSelected(){
+  const b=getBoxes().find(b=>b.id===S.selId);
+  if(!b){nt('請先選取文字框','err');return;}
+  if(!CFG.geminiKey){nt('請先填入 Gemini Key','err');showTab('settings');return;}
+  loading(true,'翻譯中…');
+  try{
+    const engine=document.getElementById('engineSel').value;
+    const data=await api('/api/translate',{
+      texts:[b.orig||document.getElementById('selOrigText').textContent],
+      src_lang:document.getElementById('srcLang').value,
+      dst_lang:document.getElementById('dstLang').value,
+      engine, gemini_key:CFG.geminiKey, deepl_key:CFG.deeplKey,
+    });
+    document.getElementById('transEdit').value=data.translations[0]||'';
+    nt('翻譯完成','ok');
+  }catch(e){nt('翻譯失敗：'+e.message,'err');}
+  finally{loading(false);}
+}
+
+function applyTranslation(){
+  const b=getBoxes().find(b=>b.id===S.selId);
+  if(!b){nt('請先選取文字框','err');return;}
+  b.trans=document.getElementById('transEdit').value;
+  renderBoxList(); renderBboxes(); updateStats(); updateStepIndicators();
+  selectBox(S.selId);
+  nt('翻譯已套用','ok');
+}
+
+// ─── Inpaint ──────────────────────────────────────────────────────────────
+async function runInpaintAll(){
+  if(!S.images.length){nt('請先上傳圖片','err');return;}
+  loading(true,'LaMa 消字中…','首次需下載模型（約 200MB）請稍候');
+  lg('LaMa 消字…','info');
+  try{
+    const src=S.images[S.curIdx];
+    const data=await api('/api/inpaint',{
+      image_b64:src.src.split(',')[1], mime_type:src.mime||'image/jpeg',
+      boxes:getBoxes(),
+      method:document.getElementById('inpaintMethod').value,
+    });
+    S.inpaintedB64[S.curIdx]=data.image_b64;
+    getBoxes().filter(b=>!b.ignored).forEach(b=>{b.inpainted=true;});
+    renderBboxes(); renderBoxList(); syncThumb(); updateStepIndicators();
+    showInpaintPreview(data.image_b64);
+    document.getElementById('btnApplyBase').disabled=false;
+    nt('消字完成！點「將消字圖設為底圖」進入排版','ok');
+    lg('消字完成','ok');
+  }catch(e){nt('消字失敗：'+e.message,'err');lg('消字失敗：'+e.message,'err');}
+  finally{loading(false);}
+}
+
+async function runInpaintSelected(){
+  const b=getBoxes().find(b=>b.id===S.selId);
+  if(!b){nt('請先選取文字框','err');return;}
+  loading(true,'消字中…');
+  try{
+    const baseB64=S.inpaintedB64[S.curIdx]||S.images[S.curIdx].src.split(',')[1];
+    const mime=S.inpaintedB64[S.curIdx]?'image/png':(S.images[S.curIdx].mime||'image/jpeg');
+    const data=await api('/api/inpaint',{
+      image_b64:baseB64, mime_type:mime, boxes:[b],
+      method:document.getElementById('inpaintMethod').value,
+    });
+    S.inpaintedB64[S.curIdx]=data.image_b64;
+    b.inpainted=true;
+    renderBboxes(); syncThumb(); updateStepIndicators();
+    showInpaintPreview(data.image_b64);
+    document.getElementById('btnApplyBase').disabled=false;
+    nt('選中框消字完成','ok');
+  }catch(e){nt('消字失敗：'+e.message,'err');}
+  finally{loading(false);}
+}
+
+function showInpaintPreview(b64){
+  const cv=document.getElementById('inpaintPrev');
+  const img=new Image();
+  img.onload=()=>{
+    cv.width=img.naturalWidth; cv.height=img.naturalHeight;
+    cv.getContext('2d').drawImage(img,0,0);
+    cv.style.display='block';
+    document.getElementById('inpaintPh').style.display='none';
+  };
+  img.src='data:image/png;base64,'+b64;
+}
+
+// Apply inpainted image as canvas base → user sees clean image, bboxes still shown
+function applyInpaintAsBase(){
+  const b64=S.inpaintedB64[S.curIdx];
+  if(!b64){nt('請先執行消字','err');return;}
+  S.baseIsInpaint[S.curIdx]=true;
+  const img=document.getElementById('mainImg');
+  img.src='data:image/png;base64,'+b64;
+  img.onload=()=>{fitImage();renderBboxes();};
+  updateStepIndicators();
+  nt('已切換為消字底圖，現在可調整排版','ok');
+  lg('底圖已換為消字圖','ok');
+  showTab('typeset');
+  renderTsBoxList();
+}
+
+function updatePreview(){
+  const b64=S.inpaintedB64[S.curIdx];
+  if(b64){showInpaintPreview(b64);document.getElementById('btnApplyBase').disabled=false;}
+  else{document.getElementById('inpaintPrev').style.display='none';document.getElementById('inpaintPh').style.display='block';document.getElementById('btnApplyBase').disabled=true;}
+}
+
+// ─── Font size slider ─────────────────────────────────────────────────────
+function onFontSizeRange(v){
+  const n=+v;
+  document.getElementById('fontSizeVal').textContent=n===0?'自動':n+'px';
+  document.getElementById('autoScaleTog').classList.toggle('on',n===0);
+}
+
+// ─── Preview + Export ─────────────────────────────────────────────────────
+function buildBoxesForExport(){
+  // Merge global settings into boxes (unless box has per-box override)
+  const globalColor=document.getElementById('fontColor').value;
+  const globalDir=document.getElementById('textDir').value;
+  const globalSize=+document.getElementById('fontSizeRange').value;
+  return getBoxes().map(b=>({
+    ...b,
+    tsColor:b.tsColor||globalColor,
+    tsDir:b.tsDir||globalDir,
+    tsSize:b.tsSize||globalSize,
+  }));
+}
+
+async function renderPreview(){
+  const baseB64=S.inpaintedB64[S.curIdx]||S.images[S.curIdx]?.src.split(',')[1];
+  if(!baseB64){nt('請先上傳圖片','err');return;}
+  const mime=S.inpaintedB64[S.curIdx]?'image/png':(S.images[S.curIdx].mime||'image/jpeg');
+  loading(true,'渲染排版預覽…');
+  try{
+    const data=await api('/api/export/render',{
+      image_b64:baseB64, mime_type:mime,
+      boxes:buildBoxesForExport(),
+      font_color:document.getElementById('fontColor').value,
+      font_family:document.getElementById('fontSel').value,
+      font_size_auto:document.getElementById('autoScaleTog').classList.contains('on'),
+      font_size:+document.getElementById('fontSizeRange').value||20,
+    });
+    showInpaintPreview(data.image_b64);
+    nt('預覽完成','ok'); lg('排版預覽完成','ok');
+  }catch(e){nt('預覽失敗：'+e.message,'err');}
+  finally{loading(false);}
+}
+
+async function exportImage(){
+  if(!S.images.length){nt('請先上傳圖片','err');return;}
+  const baseB64=S.inpaintedB64[S.curIdx]||S.images[S.curIdx].src.split(',')[1];
+  const mime=S.inpaintedB64[S.curIdx]?'image/png':(S.images[S.curIdx].mime||'image/jpeg');
+  loading(true,'匯出中…');
+  try{
+    const res=await fetch(CFG.backend+'/api/export/download',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        image_b64:baseB64, mime_type:mime,
+        boxes:buildBoxesForExport(),
+        font_color:document.getElementById('fontColor').value,
+        font_family:document.getElementById('fontSel').value,
+        font_size_auto:document.getElementById('autoScaleTog').classList.contains('on'),
+        font_size:+document.getElementById('fontSizeRange').value||20,
+      }),
+    });
+    if(!res.ok) throw new Error(res.statusText);
+    const blob=await res.blob();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='translated_'+(S.images[S.curIdx]?.name||'manga.png'); a.click();
+    nt('匯出成功！','ok'); lg('匯出成功','ok');
+  }catch(e){nt('匯出失敗：'+e.message,'err');}
+  finally{loading(false);}
+}
+
+// ─── One-click ────────────────────────────────────────────────────────────
+async function runAll(){
+  if(!CFG.geminiKey){nt('請先填入 Gemini API Key','err');showTab('settings');return;}
+  await runDetect();
+  await runOCR();
+  await translateAll();
+  showTab('typeset');
+  nt('一鍵處理完成！請前往「消字排版」頁面繼續','ok');
+}
+
+// ─── Edit modal ───────────────────────────────────────────────────────────
+function openEditModal(id){
+  const b=getBoxes().find(b=>b.id===id);if(!b)return;
+  S.selId=id;
+  document.getElementById('editModalId').textContent=`#${id}`;
+  document.getElementById('editOrig').value=b.orig||'';
+  document.getElementById('editTrans').value=b.trans||'';
+  document.getElementById('editModal').classList.add('open');
+}
+function closeModal(){document.getElementById('editModal').classList.remove('open');}
+function saveEditModal(){
+  const b=getBoxes().find(b=>b.id===S.selId);if(!b)return;
+  b.orig=document.getElementById('editOrig').value;
+  b.trans=document.getElementById('editTrans').value;
+  closeModal();renderBoxList();renderBboxes();updateStats();updateStepIndicators();selectBox(S.selId);nt('已儲存','ok');
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────
+function showTab(name){
+  document.querySelectorAll('.spanel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.stab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  const map={work:0,typeset:1,settings:2};
+  document.querySelectorAll('.stab')[map[name]].classList.add('active');
+  if(name==='typeset') renderTsBoxList();
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────
+function saveKeys(){
+  const bUrl=document.getElementById('backendUrl').value.trim();
+  const gKey=document.getElementById('geminiKey').value.trim();
+  const dKey=document.getElementById('deeplKey').value.trim();
+  if(bUrl) sessionStorage.setItem('backendUrl',bUrl);
+  if(gKey) sessionStorage.setItem('geminiKey',gKey);
+  else sessionStorage.removeItem('geminiKey');
+  if(dKey) sessionStorage.setItem('deeplKey',dKey);
+  else sessionStorage.removeItem('deeplKey');
+  updateApiStatus(); nt('設定已儲存','ok'); lg('設定儲存','ok');
+}
+function updateApiStatus(){
+  const badge=document.getElementById('apiBadge');
+  if(CFG.geminiKey){badge.className='key-badge key-ok';badge.textContent='API ✓';}
+  else{badge.className='key-badge key-no';badge.textContent='API 未設定';}
+}
+function toggleBboxVis(tog){tog.classList.toggle('on');renderBboxes();}
+
+window.addEventListener('load',()=>{
+  ['backendUrl','geminiKey','deeplKey'].forEach(id=>{
+    const v=sessionStorage.getItem(id);
+    const el=document.getElementById(id);
+    if(v&&el) el.value=v;
+  });
+  updateApiStatus();
+});
+setTool('select');
+</script>
+</body>
+</html>
