@@ -5,7 +5,7 @@ from typing import List, Optional
 
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
-GEMINI_MODEL = "gemini-1.5-pro"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 
 async def gemini_post(api_key: str, parts: list) -> str:
