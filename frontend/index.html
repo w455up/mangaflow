@@ -798,8 +798,8 @@ function renderBboxes(){
       const txt = document.createElement('div');
       txt.className = 'bbox-text' + (b.tsDir==='v'?' v':'');
       txt.textContent = b.trans;
-      // Auto-scale font size if not manually set
-      const size = b.tsSize || Math.min(b.w, b.h) * 0.7;
+      // Default to 20px if not manually set
+      const size = b.tsSize || 20;
       txt.style.fontSize = (size * (1/S.imgScale)) + 'px';
       txt.style.color = b.tsColor || document.getElementById('fontColor').value;
       div.appendChild(txt);
@@ -830,7 +830,13 @@ function startResize(e,id,dir){
     if(dir.includes('s'))h=Math.max(20,h+dy);
     if(dir.includes('w')){x+=dx;w=Math.max(20,w-dx);if(w===20)x=orig.x+orig.w-20;}
     if(dir.includes('n')){y+=dy;h=Math.max(20,h-dy);if(h===20)y=orig.y+orig.h-20;}
-    b.x=x;b.y=y;b.w=w;b.h=h;renderBboxes();
+    b.x=x;b.y=y;b.w=w;b.h=h;
+    
+    // Auto-update font size while scaling
+    if (dir.includes('s') || dir.includes('n')) {
+      b.tsSize = Math.max(10, Math.floor(h * 0.7)); 
+    }
+    renderBboxes();
   };
   const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);};
   document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
