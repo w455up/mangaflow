@@ -76,6 +76,8 @@ header{height:48px;flex-shrink:0;display:flex;align-items:center;justify-content
 .bbox.translated .bbox-lbl{background:var(--success);color:#000;}
 .bbox.inpainted .bbox-lbl{background:var(--info);color:#000;}
 .bbox.ignored .bbox-lbl{background:var(--muted);color:#fff;}
+.bbox-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;pointer-events:none;color:#000;font-weight:700;line-height:1.2;overflow:hidden;word-break:break-all;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff;}
+.bbox-text.v{writing-mode:vertical-rl;}
 .rh{position:absolute;width:8px;height:8px;background:#fff;border:1px solid #222;border-radius:2px;z-index:20;}
 .rh-nw{top:-4px;left:-4px;cursor:nw-resize;}.rh-ne{top:-4px;right:-4px;cursor:ne-resize;}
 .rh-sw{bottom:-4px;left:-4px;cursor:sw-resize;}.rh-se{bottom:-4px;right:-4px;cursor:se-resize;}
@@ -213,6 +215,10 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 .modal-x:hover{color:var(--text);}
 .modal-body{padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
 .modal-ft{padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:8px;}
+
+/* Guided Workflow Glow */
+.guide-glow { box-shadow: 0 0 15px var(--accent) !important; animation: glow 1.5s ease-in-out infinite alternate; position: relative; z-index: 100; }
+@keyframes glow { from { box-shadow: 0 0 5px var(--accent); } to { box-shadow: 0 0 20px var(--accent); } }
 
 /* divider */
 .divider{height:1px;background:var(--border);flex-shrink:0;}
@@ -382,7 +388,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
           <option value="black">純黑填充</option>
         </select>
         <div class="btn-2col">
-          <button class="btn-acc" onclick="runInpaintAll()">⬛ 消除所有框</button>
+          <button class="btn-acc" onclick="runInpaintAll()" id="btnInpaintAllSidebar">⬛ 消除所有框</button>
           <button class="btn-out" onclick="runInpaintSelected()">消除選中框</button>
         </div>
       </div>
@@ -561,6 +567,14 @@ function nt(msg,t=''){
   const el=document.getElementById('notif');
   el.textContent=msg; el.className=`notif show ${t}`;
   clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),3500);
+}
+function setGlow(id){
+  document.querySelectorAll('.guide-glow').forEach(el=>el.classList.remove('guide-glow'));
+  const el = document.getElementById(id);
+  if(el){ 
+    el.classList.add('guide-glow');
+    el.scrollIntoView({behavior:'smooth', block:'center'});
+  }
 }
 function loading(show,msg='處理中…',sub=''){
   document.getElementById('ldMsg').textContent=msg;
@@ -778,6 +792,19 @@ function renderBboxes(){
     ign.onclick=e=>{e.stopPropagation();toggleIgnore(b.id);}; div.appendChild(ign);
     div.onclick=e=>{e.stopPropagation();selectBox(b.id);};
     div.ondblclick=e=>{e.stopPropagation();openEditModal(b.id);};
+    
+    // Translated Text Layer
+    if(b.trans && !b.ignored){
+      const txt = document.createElement('div');
+      txt.className = 'bbox-text' + (b.tsDir==='v'?' v':'');
+      txt.textContent = b.trans;
+      // Auto-scale font size if not manually set
+      const size = b.tsSize || Math.min(b.w, b.h) * 0.7;
+      txt.style.fontSize = (size * (1/S.imgScale)) + 'px';
+      txt.style.color = b.tsColor || document.getElementById('fontColor').value;
+      div.appendChild(txt);
+    }
+
     if(b.id===S.selId){
       ['nw','n','ne','w','e','sw','s','se'].forEach(dir=>{
         const h=document.createElement('div'); h.className=`rh rh-${dir}`;
@@ -839,6 +866,7 @@ function renderBoxList(){
         <span class="bcard-id">#${String(b.id).padStart(2,'0')}</span>
         <span class="tag ${b.ignored?'tag-i':(b.trans?'tag-d':'tag-p')}">${b.ignored?'略過':(b.trans?'✓':'待')}</span>
         <div class="bcard-acts">
+          <button class="ica" onclick="event.stopPropagation();toggleBoxDir(${b.id})" title="切換橫/直排">${b.tsDir==='v'?'直':'橫'}</button>
           <button class="ica" onclick="event.stopPropagation();toggleIgnore(${b.id})" title="略過">👁</button>
           <button class="ica" onclick="event.stopPropagation();openEditModal(${b.id})" title="編輯">✏</button>
           <button class="ica del" onclick="event.stopPropagation();deleteBox(${b.id})" title="刪除">✕</button>
@@ -898,6 +926,14 @@ function renderTsBoxList(){
 function setBoxProp(id,prop,val){
   const b=getBoxes().find(b=>b.id===id);
   if(b) b[prop]=val;
+  renderBboxes(); // Live update on canvas
+}
+function toggleBoxDir(id){
+  const b=getBoxes().find(b=>b.id===id);
+  if(b){
+    b.tsDir = b.tsDir==='v' ? 'h' : 'v';
+    renderBoxList(); renderBboxes();
+  }
 }
 
 function updateStats(){
@@ -944,6 +980,7 @@ async function runDetect(){
     renderBboxes(); renderBoxList(); updateStats(); updateStepIndicators();
     nt(`偵測完成，找到 ${data.boxes.length} 個框`,'ok');
     lg(`偵測完成：${data.boxes.length} 個框`,'ok');
+    setGlow('btnTransAll'); // Next step: Translate
   }catch(e){nt('偵測失敗：'+e.message,'err');lg('偵測失敗：'+e.message,'err');}
   finally{loading(false);}
 }
@@ -989,6 +1026,7 @@ async function translateAll(){
     if(S.selId) selectBox(S.selId); // refresh sel panel
     renderBboxes(); renderBoxList(); updateStats(); updateStepIndicators();
     nt(`翻譯完成 ${data.translations.length} 個框`,'ok'); lg('翻譯完成','ok');
+    setGlow('btnInpaintAllSidebar'); // Next step: Inpaint
   }catch(e){nt('翻譯失敗：'+e.message,'err');lg('翻譯失敗：'+e.message,'err');}
   finally{loading(false);}
 }
@@ -1038,7 +1076,8 @@ async function runInpaintAll(){
     renderBboxes(); renderBoxList(); syncThumb(); updateStepIndicators();
     showInpaintPreview(data.image_b64);
     document.getElementById('btnApplyBase').disabled=false;
-    nt('消字完成！點「將消字圖設為底圖」進入排版','ok');
+    setGlow('btnApplyBase'); // Next step: Apply as base
+    nt('消字完成！點發光的按鈕進入排版','ok');
     lg('消字完成','ok');
   }catch(e){nt('消字失敗：'+e.message,'err');lg('消字失敗：'+e.message,'err');}
   finally{loading(false);}
