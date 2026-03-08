@@ -1129,6 +1129,7 @@ function applyInpaintAsBase(){
   lg('底圖已換為消字圖','ok');
   showTab('typeset');
   renderTsBoxList();
+  document.querySelectorAll('.guide-glow').forEach(el=>el.classList.remove('guide-glow'));
 }
 
 function updatePreview(){
