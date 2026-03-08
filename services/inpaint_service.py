@@ -145,21 +145,21 @@ def _inpaint_with_lama(lama, img: Image.Image, boxes: List[BoundingBox]) -> Imag
 
 def _inpaint_with_opencv(img: Image.Image, boxes: List[BoundingBox]) -> Image.Image:
     """
-    Use OpenCV traditional inpainting (Telea/NS) with precise text masking.
-    We isolate the actual text strokes to avoid blurring the whole background.
+    Use OpenCV traditional inpainting with bubble color detection.
+    For speech bubbles, we fill text with the background color for 100% sharpness.
+    For textures, we use Navier-Stokes inpainting.
     """
     # Convert PIL to OpenCV (BGR)
     open_cv_image = np.array(img)
     open_cv_image = open_cv_image[:, :, ::-1].copy()
 
-    # Create master mask
+    # Create master masks
+    # full_mask: for cv2.inpaint
+    # fill_mask: for direct color fill (sharpest)
     full_mask = np.zeros(open_cv_image.shape[:2], dtype=np.uint8)
-
+    
     for b in boxes:
-        if b.ignored:
-            continue
-
-        # 1. Extract the region of interest (ROI)
+        if b.ignored: continue
         x1, y1 = max(0, int(b.x)), max(0, int(b.y))
         x2, y2 = min(img.width, int(b.x + b.w)), min(img.height, int(b.y + b.h))
         if x2 <= x1 or y2 <= y1: continue
@@ -167,23 +167,41 @@ def _inpaint_with_opencv(img: Image.Image, boxes: List[BoundingBox]) -> Image.Im
         roi = open_cv_image[y1:y2, x1:x2]
         gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
 
-        # 2. Precise Text Detection (Adaptive Thresholding)
-        # We assume text is usually high contrast to its immediate background
+        # 1. Precise Text Detection
         thresh = cv2.adaptiveThreshold(
             gray_roi, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-            cv2.THRESH_BINARY_INV, 15, 8
+            cv2.THRESH_BINARY_INV, 15, 10
         )
         
-        # 3. Clean up the threshold mask (remove small noise)
+        # Clean mask
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
         thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-        thresh = cv2.dilate(thresh, kernel, iterations=1) # Slightly expand to cover edges
+        thresh = cv2.dilate(thresh, kernel, iterations=1)
 
-        # 4. Burn into full mask
-        full_mask[y1:y2, x1:x2] = cv2.bitwise_or(full_mask[y1:y2, x1:x2], thresh)
+        # 2. Bubble Detection (is this area mostly a solid color?)
+        # Get dominant color or average of edges
+        edge_pixels = np.concatenate([roi[0,:], roi[-1,:], roi[:,0], roi[:,-1]])
+        avg_color = np.mean(edge_pixels, axis=0) # BGR
+        
+        # If edges are very similar (low std dev) and mostly bright, it's a bubble
+        std_color = np.std(edge_pixels, axis=0)
+        is_bubble = np.max(std_color) < 15 and np.mean(avg_color) > 200 # Likely white/light bubble
+        
+        if is_bubble:
+            # For Bubbles: Fill the text strokes directly with the bubble color
+            # This is much sharper than inpainting
+            roi_mask = (thresh > 0)
+            roi[roi_mask] = avg_color
+            open_cv_image[y1:y2, x1:x2] = roi
+        else:
+            # For Contextual Backgrounds: Mark for cv2.inpaint
+            full_mask[y1:y2, x1:x2] = cv2.bitwise_or(full_mask[y1:y2, x1:x2], thresh)
 
-    # Run inpaint (Navier-Stokes usually looks better for text on textures)
-    dst = cv2.inpaint(open_cv_image, full_mask, 3, cv2.INPAINT_NS)
+    # Run inpaint only for non-bubble areas
+    if np.any(full_mask > 0):
+        dst = cv2.inpaint(open_cv_image, full_mask, 3, cv2.INPAINT_NS)
+    else:
+        dst = open_cv_image
 
     # Convert BGR back to RGB PIL
     dst = cv2.cvtColor(dst, cv2.COLOR_BGR2RGB)
