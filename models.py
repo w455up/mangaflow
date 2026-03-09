@@ -18,6 +18,11 @@ class DetectRequest(BaseModel):
     image_b64: str          # base64 encoded image (no data: prefix)
     mime_type: str = "image/jpeg"
     gemini_key: str
+    mode: str = "fast"      # fast | precise
+    translate: bool = False # whether to translate immediately after detection
+    src_lang: str = "ja"
+    dst_lang: str = "zh-tw"
+    context: Optional[str] = ""
 
 
 class DetectResponse(BaseModel):

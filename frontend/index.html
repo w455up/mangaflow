@@ -247,8 +247,6 @@ input[type=range]{width:100%;accent-color:var(--accent);}
       <button class="tbtn on" id="tb-sel" onclick="setTool('select')" title="選取模式 (V)">↖ 選取</button>
       <button class="tbtn" id="tb-draw" onclick="setTool('draw')" title="手動框選 (B)">▭ 框選</button>
       <div class="tsep"></div>
-      <button class="tbtn" id="tb-detect" onclick="runDetect()" title="Gemini 自動偵測對話框">✦ 自動偵測</button>
-      <div class="tsep"></div>
       <button class="tbtn dng" onclick="clearAllBoxes()" title="清除所有框">✕ 清除框</button>
 
       <!-- Workflow step indicators -->
@@ -306,9 +304,18 @@ input[type=range]{width:100%;accent-color:var(--accent);}
       </div>
 
       <!-- Action buttons -->
-      <div class="btn-2col">
-        <button class="btn-out" onclick="runOCR()" id="btnOCR">⌕ 辨識文字</button>
-        <button class="btn-out" onclick="translateAll()" id="btnTransAll">↔ 翻譯全部</button>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:6px;align-items:center;background:var(--surface2);border:1px solid var(--border);padding:6px;border-radius:5px;">
+           <div class="flabel" style="margin:0;white-space:nowrap;">偵測模式</div>
+           <select id="detectMode" style="padding:2px 5px;font-size:11px;">
+             <option value="fast">快速 (Gemini)</option>
+             <option value="precise" selected>精準 (OpenCV+AI)</option>
+           </select>
+        </div>
+        <div class="btn-2col">
+          <button class="btn-acc" onclick="runDetect()" id="btnOCR">✦ 自動偵測</button>
+          <button class="btn-out" onclick="translateAll()" id="btnTransAll">↔ 翻譯全部</button>
+        </div>
       </div>
 
       <!-- Translation settings (collapsed by default) -->
@@ -612,6 +619,8 @@ function handleFiles(files){
       S.images.push({src:e.target.result,name:f.name,mime:f.type});
       if(S.images.length===1) loadPage(0);
       else addThumb(S.images.length-1);
+      // GUIDANCE: highlight detection button
+      setTimeout(()=>setGlow('btnOCR'), 500);
     };
     r.readAsDataURL(f);
   });
@@ -929,6 +938,54 @@ function renderTsBoxList(){
   });
 }
 
+// ─── Detect ─────────────────────────────────────────────────────────────
+async function runDetect(){
+  if(!S.images.length){nt('請先上傳圖片','err');return;}
+  if(!CFG.geminiKey){nt('請先在設定頁面填入 Gemini API Key','err');showTab('settings');return;}
+  
+  // Remove glow when user starts detection
+  document.getElementById('btnOCR').classList.remove('guide-glow');
+
+  const mode = document.getElementById('detectMode').value;
+  const msg = mode === 'precise' ? '精準偵測中 (OpenCV + Gemini)…' : '快速偵測中 (Gemini)…';
+  loading(true, msg, '這可能需要幾秒鐘');
+  lg('偵測對話框…','info');
+
+  try{
+    const src=S.images[S.curIdx];
+    const data=await api('/api/detect',{
+      image_b64:src.src.split(',')[1],
+      mime_type:src.mime||'image/jpeg',
+      gemini_key:CFG.geminiKey,
+      mode: mode,
+      translate: true, // Use combined OCR + Trans in detection mode
+      src_lang: document.getElementById('srcLang').value,
+      dst_lang: document.getElementById('dstLang').value,
+      context: document.getElementById('ctxInput').value
+    });
+
+    // Clear existing boxes if requested or if it's a fresh detect
+    S.boxes[S.curIdx] = []; 
+    S.nextId = 1;
+    
+    // Add new boxes
+    data.boxes.forEach(b=>{
+      S.boxes[S.curIdx].push({
+        tsSize:0, tsDir:'h', tsColor:'',
+        inpainted:false, ignored:false,
+        ...b
+      });
+      if(b.id >= S.nextId) S.nextId = b.id + 1;
+    });
+
+    renderBboxes(); renderBoxList(); updateStats(); updateStepIndicators();
+    nt(`偵測完成，找到 ${data.boxes.length} 個框`,'ok');
+    lg('偵測完成','ok');
+    
+    setGlow('btnInpaintAllSidebar'); // Next step
+  }catch(e){nt('偵測失敗：'+e.message,'err');lg('偵測失敗：'+e.message,'err');}
+  finally{loading(false);}
+}
 function setBoxProp(id,prop,val){
   const b=getBoxes().find(b=>b.id===id);
   if(b) b[prop]=val;
@@ -954,6 +1011,7 @@ function updateStepIndicators(){
   const b=getBoxes();
   const set=(id,st)=>{
     const el=document.getElementById(id);
+    if(!el) return;
     el.className='step'+(st==='done'?' done':st==='active'?' active':'');
   };
   const hasBoxes=b.length>0;
@@ -968,28 +1026,6 @@ function updateStepIndicators(){
   set('step5',baseDone?'done':(hasInpaint?'active':''));
 }
 
-// ─── Detect ───────────────────────────────────────────────────────────────
-async function runDetect(){
-  if(!S.images.length){nt('請先上傳圖片','err');return;}
-  if(!CFG.geminiKey){nt('請先在設定頁面填入 Gemini API Key','err');showTab('settings');return;}
-  loading(true,'Gemini 偵測對話框中…','首次呼叫可能稍慢');
-  lg('偵測中…','info');
-  try{
-    const src=S.images[S.curIdx];
-    const b64=src.src.split(',')[1];
-    const data=await api('/api/detect',{image_b64:b64,mime_type:src.mime||'image/jpeg',gemini_key:CFG.geminiKey});
-    S.boxes[S.curIdx]=[]; S.nextId=1;
-    data.boxes.forEach(b=>{
-      S.boxes[S.curIdx].push({...b,tsSize:0,tsDir:'h',tsColor:''});
-      if(b.id>=S.nextId) S.nextId=b.id+1;
-    });
-    renderBboxes(); renderBoxList(); updateStats(); updateStepIndicators();
-    nt(`偵測完成，找到 ${data.boxes.length} 個框`,'ok');
-    lg(`偵測完成：${data.boxes.length} 個框`,'ok');
-    setGlow('btnTransAll'); // Next step: Translate
-  }catch(e){nt('偵測失敗：'+e.message,'err');lg('偵測失敗：'+e.message,'err');}
-  finally{loading(false);}
-}
 
 // ─── OCR ──────────────────────────────────────────────────────────────────
 async function runOCR(){

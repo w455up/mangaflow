@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+venv.bak/
+.vscode/
+.idea/
+.DS_Store
+test_detect.py
+C:\Users\user\.gemini\antigravity\brain\
+node_modules/
+dist/
+/brain/

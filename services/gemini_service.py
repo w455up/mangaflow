@@ -120,3 +120,71 @@ async def gemini_translate(
         if 0 <= r["i"] < len(translations):
             translations[r["i"]] = r["t"]
     return translations
+async def gemini_ocr_translate_boxes(
+    image_b64: str,
+    mime_type: str,
+    img_w: int,
+    img_h: int,
+    boxes: List[dict],
+    api_key: str,
+    src_lang: str = "ja",
+    dst_lang: str = "zh-tw",
+    context: Optional[str] = "",
+    translate: bool = True,
+) -> List[dict]:
+    """
+    Ask Gemini to read text from specific bounding boxes AND translate them if requested.
+    Returns list of {i, orig, trans}
+    """
+    if not boxes:
+        return []
+
+    region_list = "\n".join(
+        f"Box {i}: x={int(b['x'])}, y={int(b['y'])}, w={int(b['w'])}, h={int(b['h'])}"
+        for i, b in enumerate(boxes)
+    )
+
+    lang_map = {
+        "ja": "Japanese", "zh-cn": "Simplified Chinese",
+        "zh-tw": "Traditional Chinese", "ko": "Korean", "en": "English",
+    }
+    src = lang_map.get(src_lang, src_lang)
+    dst = lang_map.get(dst_lang, dst_lang)
+    ctx_line = f"Context: {context}\n" if context else ""
+
+    if translate:
+        prompt = (
+            f"You are a professional manga translator. This is a manga image ({img_w}x{img_h}px).\n"
+            f"1. Precisely read the original text from each region (preserve original characters).\n"
+            f"2. Translate that text from {src} to {dst}, keeping it natural/colloquial.\n"
+            f"{ctx_line}"
+            f"Regions:\n{region_list}\n"
+            'Return JSON array: [{"i":0,"o":"original text","t":"translation"},...]  Only JSON.'
+        )
+    else:
+        prompt = (
+            f"This is a manga image ({img_w}x{img_h}px). "
+            "Please read the text inside each of the following regions precisely. "
+            "Do NOT translate. Preserve original characters exactly.\n"
+            f"{region_list}\n"
+            'Return JSON array: [{"i":0,"o":"text in box"}]  Only JSON, no explanation.'
+        )
+
+    parts = [
+        {"inline_data": {"mime_type": mime_type, "data": image_b64}},
+        {"text": prompt},
+    ]
+    raw = await gemini_post(api_key, parts)
+    results = extract_json(raw)
+    
+    # Return mapping
+    mapped = []
+    for r in results:
+        idx = r.get("i")
+        if idx is not None and 0 <= idx < len(boxes):
+            mapped.append({
+                "i": idx,
+                "o": r.get("o", ""),
+                "t": r.get("t", "") if translate else ""
+            })
+    return mapped
